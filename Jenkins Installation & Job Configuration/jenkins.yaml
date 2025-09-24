@@ -1,0 +1,93 @@
+---
+- name: Install and Configure Jenkins CI Server
+  hosts: jenkins
+  become: yes
+  vars:
+    java_package: openjdk-17-jdk
+    jenkins_repo_key_url: https://pkg.jenkins.io/debian-stable/jenkins.io-2023.key
+    jenkins_repo_url: deb https://pkg.jenkins.io/debian-stable binary/
+    jenkins_admin_user: admin
+    jenkins_admin_password: Admin@123
+    jenkins_plugins:
+      - git
+      - workflow-aggregator
+      - pipeline-stage-view
+      - blueocean
+    jenkins_jobs:
+      - name: "my-first-job"
+        config_xml: |
+          <project>
+            <actions/>
+            <description>First Job created by Ansible</description>
+            <keepDependencies>false</keepDependencies>
+            <properties/>
+            <scm class="hudson.scm.NullSCM"/>
+            <canRoam>true</canRoam>
+            <disabled>false</disabled>
+            <blockBuildWhenDownstreamBuilding>false</blockBuildWhenDownstreamBuilding>
+            <blockBuildWhenUpstreamBuilding>false</blockBuildWhenUpstreamBuilding>
+            <triggers/>
+            <concurrentBuild>false</concurrentBuild>
+            <builders>
+              <hudson.tasks.Shell>
+                <command>echo "Hello from Jenkins job!"</command>
+              </hudson.tasks.Shell>
+            </builders>
+            <publishers/>
+            <buildWrappers/>
+          </project>
+
+  tasks:
+    - name: Install Java (required for Jenkins)
+      apt:
+        name: "{{ java_package }}"
+        state: present
+        update_cache: yes
+
+    - name: Add Jenkins repo key
+      apt_key:
+        url: "{{ jenkins_repo_key_url }}"
+        state: present
+
+    - name: Add Jenkins repository
+      apt_repository:
+        repo: "{{ jenkins_repo_url }}"
+        state: present
+
+    - name: Install Jenkins
+      apt:
+        name: jenkins
+        state: present
+        update_cache: yes
+
+    - name: Ensure Jenkins is started and enabled
+      service:
+        name: jenkins
+        state: started
+        enabled: yes
+
+    - name: Install required plugins
+      community.general.jenkins_plugin:
+        name: "{{ item }}"
+        state: present
+        url: http://localhost:8080
+        url_username: "{{ jenkins_admin_user }}"
+        url_password: "{{ jenkins_admin_password }}"
+        validate_certs: no
+      loop: "{{ jenkins_plugins }}"
+      notify: Restart Jenkins
+
+    - name: Create Jenkins jobs
+      community.general.jenkins_job:
+        config: "{{ item.config_xml }}"
+        name: "{{ item.name }}"
+        user: "{{ jenkins_admin_user }}"
+        password: "{{ jenkins_admin_password }}"
+        url: http://localhost:8080
+      loop: "{{ jenkins_jobs }}"
+
+  handlers:
+    - name: Restart Jenkins
+      service:
+        name: jenkins
+        state: restarted
