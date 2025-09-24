@@ -1,0 +1,66 @@
+---
+- name: Setup MySQL/MariaDB Database Server
+  hosts: dbservers
+  become: yes
+  vars:
+    db_engine: mariadb                # Options: mysql or mariadb
+    mysql_root_password: StrongPass123!
+    app_db_name: myappdb
+    app_db_user: myappuser
+    app_db_password: MyApp@123
+
+  tasks:
+    - name: Install MySQL/MariaDB server
+      apt:
+        name: "{{ 'mysql-server' if db_engine == 'mysql' else 'mariadb-server' }}"
+        state: present
+        update_cache: yes
+
+    - name: Ensure DB service is running
+      service:
+        name: "{{ 'mysql' if db_engine == 'mysql' else 'mariadb' }}"
+        state: started
+        enabled: yes
+
+    - name: Set MySQL root password (first-time setup)
+      mysql_user:
+        login_user: root
+        login_password: ""
+        user: root
+        password: "{{ mysql_root_password }}"
+        host_all: yes
+      ignore_errors: yes   # In case password already set
+
+    - name: Remove anonymous users
+      mysql_user:
+        login_user: root
+        login_password: "{{ mysql_root_password }}"
+        user: ""
+        host_all: yes
+        state: absent
+
+    - name: Remove test database
+      mysql_db:
+        login_user: root
+        login_password: "{{ mysql_root_password }}"
+        name: test
+        state: absent
+
+    - name: Create application database
+      mysql_db:
+        login_user: root
+        login_password: "{{ mysql_root_password }}"
+        name: "{{ app_db_name }}"
+        state: present
+        encoding: utf8mb4
+        collation: utf8mb4_general_ci
+
+    - name: Create application DB user
+      mysql_user:
+        login_user: root
+        login_password: "{{ mysql_root_password }}"
+        name: "{{ app_db_user }}"
+        password: "{{ app_db_password }}"
+        host: "%"
+        priv: "{{ app_db_name }}.*:ALL"
+        state: present
