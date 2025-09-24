@@ -1,0 +1,91 @@
+---
+- name: Install and Configure Prometheus Alertmanager
+  hosts: monitoring
+  become: yes
+  vars:
+    alertmanager_version: "0.27.0"
+    alertmanager_dir: /opt/alertmanager
+    alertmanager_config_file: /opt/alertmanager/alertmanager.yml
+
+    # Example Slack configuration
+    slack_webhook_url: "https://hooks.slack.com/services/TOKEN/TO/WEBHOOK"
+
+    # Example Email configuration
+    email_to: "devops@example.com"
+    email_from: "alertmanager@example.com"
+    smtp_smarthost: "smtp.example.com:587"
+    smtp_auth_username: "smtpuser"
+    smtp_auth_password: "smtppass"
+
+  tasks:
+    # -----------------------------
+    # Download and Install Alertmanager
+    # -----------------------------
+    - name: Download Alertmanager
+      get_url:
+        url: "https://github.com/prometheus/alertmanager/releases/download/v{{ alertmanager_version }}/alertmanager-{{ alertmanager_version }}.linux-amd64.tar.gz"
+        dest: /tmp/alertmanager.tar.gz
+
+    - name: Extract Alertmanager
+      unarchive:
+        src: /tmp/alertmanager.tar.gz
+        dest: "{{ alertmanager_dir }}"
+        remote_src: yes
+        extra_opts: [--strip-components=1]
+
+    - name: Create Alertmanager systemd service
+      copy:
+        dest: /etc/systemd/system/alertmanager.service
+        content: |
+          [Unit]
+          Description=Prometheus Alertmanager
+          Wants=network-online.target
+          After=network-online.target
+
+          [Service]
+          ExecStart={{ alertmanager_dir }}/alertmanager \
+            --config.file={{ alertmanager_config_file }} \
+            --storage.path={{ alertmanager_dir }}/data
+          Restart=always
+
+          [Install]
+          WantedBy=multi-user.target
+
+    # -----------------------------
+    # Alertmanager Configuration
+    # -----------------------------
+    - name: Configure Alertmanager (Slack + Email)
+      copy:
+        dest: "{{ alertmanager_config_file }}"
+        content: |
+          global:
+            resolve_timeout: 5m
+            smtp_smarthost: '{{ smtp_smarthost }}'
+            smtp_from: '{{ email_from }}'
+            smtp_auth_username: '{{ smtp_auth_username }}'
+            smtp_auth_password: '{{ smtp_auth_password }}'
+
+          route:
+            group_by: ['alertname']
+            group_wait: 30s
+            group_interval: 5m
+            repeat_interval: 1h
+            receiver: 'slack-notifications'
+
+          receivers:
+            - name: 'slack-notifications'
+              slack_configs:
+                - channel: '#alerts'
+                  send_resolved: true
+                  api_url: '{{ slack_webhook_url }}'
+
+            - name: 'email-notifications'
+              email_configs:
+                - to: '{{ email_to }}'
+                  send_resolved: true
+
+    - name: Enable and start Alertmanager
+      systemd:
+        name: alertmanager
+        state: started
+        enabled: yes
