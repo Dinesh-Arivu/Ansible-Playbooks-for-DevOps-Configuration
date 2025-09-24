@@ -1,0 +1,108 @@
+---
+- name: CI/CD Pipeline Deployment
+  hosts: cicdservers
+  become: yes
+  vars:
+    repo_url: "https://github.com/example/myapp.git"
+    repo_branch: "main"
+    app_build_dir: "/opt/myapp"
+    deploy_type: docker     # Options: docker or tomcat
+
+    # Jenkins vars (optional if using Jenkins triggers)
+    jenkins_url: "http://localhost:8080"
+    jenkins_user: "admin"
+    jenkins_password: "Admin@123"
+    jenkins_job: "my-first-job"
+
+    # Docker vars
+    docker_image: "myapp:latest"
+    docker_container_name: "myapp-container"
+    docker_ports:
+      - "8080:8080"
+
+    # Tomcat vars
+    war_file: "target/myapp.war"
+    tomcat_webapps_dir: "/opt/tomcat/webapps"
+    tomcat_service: "tomcat"
+
+  tasks:
+    # -----------------------------
+    # Code Checkout
+    # -----------------------------
+    - name: Ensure Git is installed
+      apt:
+        name: git
+        state: present
+        update_cache: yes
+
+    - name: Checkout source code
+      git:
+        repo: "{{ repo_url }}"
+        dest: "{{ app_build_dir }}"
+        version: "{{ repo_branch }}"
+        force: yes
+
+    # -----------------------------
+    # Build Step (Maven / Gradle)
+    # -----------------------------
+    - name: Ensure Maven is installed
+      apt:
+        name: maven
+        state: present
+      when: deploy_type == "tomcat"
+
+    - name: Build application with Maven
+      command: mvn clean package
+      args:
+        chdir: "{{ app_build_dir }}"
+      when: deploy_type == "tomcat"
+
+    # -----------------------------
+    # Deployment - Docker
+    # -----------------------------
+    - name: Build Docker image
+      community.docker.docker_image:
+        name: "{{ docker_image }}"
+        build:
+          path: "{{ app_build_dir }}"
+      when: deploy_type == "docker"
+
+    - name: Run Docker container
+      community.docker.docker_container:
+        name: "{{ docker_container_name }}"
+        image: "{{ docker_image }}"
+        state: started
+        restart_policy: always
+        published_ports: "{{ docker_ports }}"
+      when: deploy_type == "docker"
+
+    # -----------------------------
+    # Deployment - Tomcat
+    # -----------------------------
+    - name: Deploy WAR to Tomcat
+      copy:
+        src: "{{ app_build_dir }}/{{ war_file }}"
+        dest: "{{ tomcat_webapps_dir }}/myapp.war"
+        owner: tomcat
+        group: tomcat
+        mode: '0644'
+      when: deploy_type == "tomcat"
+      notify: Restart Tomcat
+
+    # -----------------------------
+    # Jenkins Integration
+    # -----------------------------
+    - name: Trigger Jenkins job (optional)
+      community.general.jenkins_job:
+        name: "{{ jenkins_job }}"
+        user: "{{ jenkins_user }}"
+        password: "{{ jenkins_password }}"
+        url: "{{ jenkins_url }}"
+        state: present
+      when: jenkins_url is defined
+
+  handlers:
+    - name: Restart Tomcat
+      service:
+        name: "{{ tomcat_service }}"
+        state: restarted
