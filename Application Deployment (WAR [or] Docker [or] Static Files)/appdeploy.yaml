@@ -1,0 +1,78 @@
+---
+- name: Application Deployment (Tomcat / Nginx / Docker)
+  hosts: appservers
+  become: yes
+  vars:
+    deploy_type: war              # Options: war, static, docker
+
+    # WAR deployment variables
+    war_file_src: /tmp/myapp.war
+    tomcat_webapps_dir: /opt/tomcat/webapps
+    tomcat_service_name: tomcat
+
+    # Static site variables
+    static_files_src: ./site/
+    nginx_root: /var/www/html
+    nginx_service_name: nginx
+
+    # Docker deployment variables
+    docker_image: myapp:latest
+    docker_container_name: myapp-container
+    docker_ports:
+      - "8081:8080"
+
+  tasks:
+    # -----------------------------
+    # WAR deployment (Tomcat)
+    # -----------------------------
+    - name: Deploy WAR to Tomcat
+      copy:
+        src: "{{ war_file_src }}"
+        dest: "{{ tomcat_webapps_dir }}/myapp.war"
+        owner: tomcat
+        group: tomcat
+        mode: '0644'
+      when: deploy_type == "war"
+      notify: Restart Tomcat
+
+    # -----------------------------
+    # Static site deployment (Nginx)
+    # -----------------------------
+    - name: Deploy static files to Nginx
+      copy:
+        src: "{{ static_files_src }}"
+        dest: "{{ nginx_root }}/"
+        owner: www-data
+        group: www-data
+        mode: '0644'
+      when: deploy_type == "static"
+      notify: Restart Nginx
+
+    # -----------------------------
+    # Docker deployment
+    # -----------------------------
+    - name: Pull Docker image
+      community.docker.docker_image:
+        name: "{{ docker_image }}"
+        source: pull
+      when: deploy_type == "docker"
+
+    - name: Run Docker container
+      community.docker.docker_container:
+        name: "{{ docker_container_name }}"
+        image: "{{ docker_image }}"
+        state: started
+        restart_policy: always
+        published_ports: "{{ docker_ports }}"
+      when: deploy_type == "docker"
+
+  handlers:
+    - name: Restart Tomcat
+      service:
+        name: "{{ tomcat_service_name }}"
+        state: restarted
+
+    - name: Restart Nginx
+      service:
+        name: "{{ nginx_service_name }}"
+        state: restarted
