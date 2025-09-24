@@ -1,0 +1,120 @@
+---
+- name: Install Docker and Manage Containers
+  hosts: dockerservers
+  become: yes
+  vars:
+    docker_users:
+      - "{{ ansible_user }}"    # Add current SSH user to docker group
+
+    docker_networks:
+      - name: myapp-net
+        driver: bridge
+
+    docker_images:
+      - name: nginx:latest
+      - name: mysql:8.0
+
+    docker_containers:
+      - name: webserver
+        image: nginx:latest
+        state: started
+        restart_policy: always
+        published_ports:
+          - "8080:80"
+        networks:
+          - name: myapp-net
+
+      - name: dbserver
+        image: mysql:8.0
+        state: started
+        restart_policy: always
+        env:
+          MYSQL_ROOT_PASSWORD: rootpass
+          MYSQL_DATABASE: myappdb
+          MYSQL_USER: myappuser
+          MYSQL_PASSWORD: myapppass
+        networks:
+          - name: myapp-net
+
+  tasks:
+    # -----------------------------
+    # Docker Installation
+    # -----------------------------
+    - name: Install required packages
+      apt:
+        name:
+          - apt-transport-https
+          - ca-certificates
+          - curl
+          - software-properties-common
+        state: present
+        update_cache: yes
+
+    - name: Add Docker GPG key
+      apt_key:
+        url: https://download.docker.com/linux/ubuntu/gpg
+        state: present
+
+    - name: Add Docker APT repository
+      apt_repository:
+        repo: "deb [arch=amd64] https://download.docker.com/linux/ubuntu focal stable"
+        state: present
+
+    - name: Install Docker
+      apt:
+        name:
+          - docker-ce
+          - docker-ce-cli
+          - containerd.io
+        state: present
+        update_cache: yes
+
+    - name: Install Docker SDK for Python (required for Ansible Docker modules)
+      pip:
+        name: docker
+
+    - name: Add users to Docker group
+      user:
+        name: "{{ item }}"
+        groups: docker
+        append: yes
+      loop: "{{ docker_users }}"
+
+    - name: Ensure Docker service is started
+      service:
+        name: docker
+        state: started
+        enabled: yes
+
+    # -----------------------------
+    # Docker Network Creation
+    # -----------------------------
+    - name: Create custom Docker networks
+      community.docker.docker_network:
+        name: "{{ item.name }}"
+        driver: "{{ item.driver | default('bridge') }}"
+        state: present
+      loop: "{{ docker_networks }}"
+
+    # -----------------------------
+    # Docker Image Pull
+    # -----------------------------
+    - name: Pull required Docker images
+      community.docker.docker_image:
+        name: "{{ item.name }}"
+        source: pull
+      loop: "{{ docker_images }}"
+
+    # -----------------------------
+    # Docker Containers
+    # -----------------------------
+    - name: Run Docker containers
+      community.docker.docker_container:
+        name: "{{ item.name }}"
+        image: "{{ item.image }}"
+        state: "{{ item.state }}"
+        restart_policy: "{{ item.restart_policy }}"
+        published_ports: "{{ item.published_ports | default([]) }}"
+        env: "{{ item.env | default({}) }}"
+        networks: "{{ item.networks | default([]) }}"
+      loop: "{{ docker_containers }}"
