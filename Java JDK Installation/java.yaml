@@ -1,0 +1,44 @@
+---
+- name: Install Java (OpenJDK) and Configure Environment
+  hosts: appservers
+  become: yes
+  vars:
+    java_version: openjdk-17-jdk     # Options: openjdk-8-jdk, openjdk-11-jdk, openjdk-17-jdk
+    java_home_path: "/usr/lib/jvm/java-17-openjdk-amd64"
+
+  tasks:
+    - name: Update apt cache
+      apt:
+        update_cache: yes
+
+    - name: Install Java
+      apt:
+        name: "{{ java_version }}"
+        state: present
+
+    - name: Ensure JAVA_HOME is set system-wide
+      lineinfile:
+        dest: /etc/profile.d/java.sh
+        line: "export JAVA_HOME={{ java_home_path }}"
+        create: yes
+        mode: '0755'
+
+    - name: Ensure Java bin path is added to PATH
+      lineinfile:
+        dest: /etc/profile.d/java.sh
+        line: "export PATH=$JAVA_HOME/bin:$PATH"
+        insertafter: EOF
+
+    - name: Make JAVA_HOME script executable
+      file:
+        path: /etc/profile.d/java.sh
+        mode: '0755'
+
+    - name: Verify Java installation
+      command: java -version
+      register: java_version_output
+      changed_when: false
+
+    - name: Show installed Java version
+      debug:
+        msg: "{{ java_version_output.stderr_lines }}"
