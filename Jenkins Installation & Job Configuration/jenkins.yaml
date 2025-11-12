@@ -8,83 +8,61 @@
     jenkins_repo_url: deb https://pkg.jenkins.io/debian-stable binary/
     jenkins_admin_user: admin
     jenkins_admin_password: Admin@123
-    jenkins_plugins:
-      - git
-      - workflow-aggregator
-      - pipeline-stage-view
-      - blueocean
-    jenkins_jobs:
-      - name: "my-first-job"
-        config_xml: |
-          <project>
-            <actions/>
-            <description>First Job created by Ansible</description>
-            <keepDependencies>false</keepDependencies>
-            <properties/>
-            <scm class="hudson.scm.NullSCM"/>
-            <canRoam>true</canRoam>
-            <disabled>false</disabled>
-            <blockBuildWhenDownstreamBuilding>false</blockBuildWhenDownstreamBuilding>
-            <blockBuildWhenUpstreamBuilding>false</blockBuildWhenUpstreamBuilding>
-            <triggers/>
-            <concurrentBuild>false</concurrentBuild>
-            <builders>
-              <hudson.tasks.Shell>
-                <command>echo "Hello from Jenkins job!"</command>
-              </hudson.tasks.Shell>
-            </builders>
-            <publishers/>
-            <buildWrappers/>
-          </project>
 
   tasks:
-    - name: Install Java (required for Jenkins)
+    # 1️⃣ Ensure base packages are available
+    - name: Ensure dependencies are installed
       apt:
-        name: "{{ java_package }}"
+        name:
+          - gnupg
+          - curl
+          - apt-transport-https
+          - ca-certificates
         state: present
         update_cache: yes
 
+    # 2️⃣ Install Java (required for Jenkins)
+    - name: Install Java
+      apt:
+        name: "{{ java_package }}"
+        state: present
+
+    # 3️⃣ Add Jenkins GPG key
     - name: Add Jenkins repo key
       apt_key:
         url: "{{ jenkins_repo_key_url }}"
         state: present
 
+    # 4️⃣ Add Jenkins repository
     - name: Add Jenkins repository
       apt_repository:
         repo: "{{ jenkins_repo_url }}"
         state: present
 
+    # 5️⃣ Install Jenkins
     - name: Install Jenkins
       apt:
         name: jenkins
         state: present
         update_cache: yes
 
+    # 6️⃣ Ensure Jenkins service is running
     - name: Ensure Jenkins is started and enabled
       service:
         name: jenkins
         state: started
         enabled: yes
 
-    - name: Install required plugins
-      community.general.jenkins_plugin:
-        name: "{{ item }}"
-        state: present
-        url: http://localhost:8080
-        url_username: "{{ jenkins_admin_user }}"
-        url_password: "{{ jenkins_admin_password }}"
+    # 7️⃣ Wait for Jenkins to be ready (port 8080)
+    - name: Wait for Jenkins web interface to become available
+      uri:
+        url: http://localhost:8080/login
+        status_code: 200
         validate_certs: no
-      loop: "{{ jenkins_plugins }}"
-      notify: Restart Jenkins
-
-    - name: Create Jenkins jobs
-      community.general.jenkins_job:
-        config: "{{ item.config_xml }}"
-        name: "{{ item.name }}"
-        user: "{{ jenkins_admin_user }}"
-        password: "{{ jenkins_admin_password }}"
-        url: http://localhost:8080
-      loop: "{{ jenkins_jobs }}"
+      register: jenkins_status
+      retries: 30
+      delay: 10
+      until: jenkins_status.status == 200
 
   handlers:
     - name: Restart Jenkins
