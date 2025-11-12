@@ -1,20 +1,21 @@
 ---
-- name: Install and Configure Web Server (Apache/Nginx)
+- name: Install and Configure Apache Web Server
   hosts: webservers
   become: yes
   vars:
-    web_server: apache        # Options: apache or nginx
-    server_port: 80
+    apache_port: 80
     server_name: myapp.local
     document_root: /var/www/myapp
 
   tasks:
-    - name: Install Apache or Nginx
+    # 1. Install Apache
+    - name: Install Apache2 package
       apt:
-        name: "{{ 'apache2' if web_server == 'apache' else 'nginx' }}"
+        name: apache2
         state: present
         update_cache: yes
 
+    # 2. Create Document Root
     - name: Create Document Root
       file:
         path: "{{ document_root }}"
@@ -23,6 +24,7 @@
         group: www-data
         mode: '0755'
 
+    # 3. Deploy Sample HTML Page
     - name: Deploy Sample HTML Page
       copy:
         dest: "{{ document_root }}/index.html"
@@ -30,20 +32,20 @@
           <html>
           <head><title>Welcome to {{ server_name }}</title></head>
           <body>
-            <h1>Deployed via Ansible 🚀</h1>
-            <p>This is a sample page served by {{ web_server | capitalize }}.</p>
+            <h1>Apache Deployed via Ansible 🚀</h1>
+            <p>This is a sample page served by Apache.</p>
           </body>
           </html>
         owner: www-data
         group: www-data
         mode: '0644'
 
-    - name: Configure Virtual Host (Apache)
-      when: web_server == "apache"
+    # 4. Configure Apache Virtual Host
+    - name: Configure Apache Virtual Host
       copy:
         dest: /etc/apache2/sites-available/myapp.conf
         content: |
-          <VirtualHost *:{{ server_port }}>
+          <VirtualHost *:{{ apache_port }}>
               ServerName {{ server_name }}
               DocumentRoot {{ document_root }}
               <Directory {{ document_root }}>
@@ -53,38 +55,24 @@
               ErrorLog ${APACHE_LOG_DIR}/error.log
               CustomLog ${APACHE_LOG_DIR}/access.log combined
           </VirtualHost>
-
-    - name: Enable Apache Site
-      when: web_server == "apache"
-      command: a2ensite myapp.conf
       notify: Restart Apache
 
-    - name: Configure Virtual Host (Nginx)
-      when: web_server == "nginx"
-      copy:
-        dest: /etc/nginx/sites-available/myapp
-        content: |
-          server {
-              listen {{ server_port }};
-              server_name {{ server_name }};
-              root {{ document_root }};
-              index index.html;
-              location / {
-                  try_files $uri $uri/ =404;
-              }
-          }
+    # 5. Enable Site
+    - name: Enable Apache Site
+      command: a2ensite myapp.conf
+      args:
+        creates: /etc/apache2/sites-enabled/myapp.conf
+      notify: Restart Apache
 
-    - name: Enable Nginx Site
-      when: web_server == "nginx"
-      file:
-        src: /etc/nginx/sites-available/myapp
-        dest: /etc/nginx/sites-enabled/myapp
-        state: link
-      notify: Restart Nginx
+    # 6. Enable Required Modules
+    - name: Enable rewrite module
+      command: a2enmod rewrite
+      notify: Restart Apache
 
-    - name: Ensure Web Server is Running
+    # 7. Ensure Apache is Running
+    - name: Ensure Apache is running
       service:
-        name: "{{ 'apache2' if web_server == 'apache' else 'nginx' }}"
+        name: apache2
         state: started
         enabled: yes
 
@@ -92,9 +80,4 @@
     - name: Restart Apache
       service:
         name: apache2
-        state: restarted
-
-    - name: Restart Nginx
-      service:
-        name: nginx
         state: restarted
