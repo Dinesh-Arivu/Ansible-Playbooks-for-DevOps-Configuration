@@ -136,6 +136,12 @@
     # -----------------------------
     # Grafana Installation
     # -----------------------------
+    - name: Install gnupg for key management
+      apt:
+        name: gnupg
+        state: present
+        update_cache: yes
+    
     - name: Add Grafana APT key
       apt_key:
         url: https://packages.grafana.com/gpg.key
