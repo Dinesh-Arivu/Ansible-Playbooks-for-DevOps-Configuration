@@ -1,24 +1,23 @@
 ---
-- name: Setup MySQL/MariaDB Database Server
+- name: Setup MySQL Database Server
   hosts: dbservers
   become: yes
   vars:
-    db_engine: mariadb                # Options: mysql or mariadb
     mysql_root_password: StrongPass123!
     app_db_name: myappdb
     app_db_user: myappuser
     app_db_password: MyApp@123
 
   tasks:
-    - name: Install MySQL/MariaDB server
+    - name: Install MySQL server
       apt:
-        name: "{{ 'mysql-server' if db_engine == 'mysql' else 'mariadb-server' }}"
+        name: mysql-server
         state: present
         update_cache: yes
 
-    - name: Ensure DB service is running
+    - name: Ensure MySQL service is running
       service:
-        name: "{{ 'mysql' if db_engine == 'mysql' else 'mariadb' }}"
+        name: mysql
         state: started
         enabled: yes
 
@@ -29,7 +28,7 @@
         user: root
         password: "{{ mysql_root_password }}"
         host_all: yes
-      ignore_errors: yes   # In case password already set
+      ignore_errors: yes   # Skip if password already set
 
     - name: Remove anonymous users
       mysql_user:
