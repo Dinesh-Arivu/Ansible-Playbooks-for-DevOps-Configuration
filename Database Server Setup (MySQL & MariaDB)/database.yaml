@@ -7,8 +7,23 @@
     app_db_name: myappdb
     app_db_user: myappuser
     app_db_password: MyApp@123
+    ansible_python_interpreter: /usr/bin/python3
 
   tasks:
+    - name: Update apt cache and install dependencies
+      apt:
+        name:
+          - python3-pip
+          - python3-dev
+          - libmysqlclient-dev
+        state: present
+        update_cache: yes
+
+    - name: Install Python MySQL library
+      pip:
+        name: mysqlclient
+        executable: pip3
+
     - name: Install MySQL server
       apt:
         name: mysql-server
