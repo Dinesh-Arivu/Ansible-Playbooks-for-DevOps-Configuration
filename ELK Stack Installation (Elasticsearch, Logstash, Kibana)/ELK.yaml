@@ -2,8 +2,8 @@
 - name: Install and Configure ELK Stack (Elasticsearch, Logstash, Kibana)
   hosts: elkservers
   become: yes
+
   vars:
-    elk_version: "8.15.0"
     es_heap_size: "1g"
     es_port: 9200
     kibana_port: 5601
@@ -17,6 +17,8 @@
       apt:
         name:
           - apt-transport-https
+          - ca-certificates
+          - gnupg
           - openjdk-17-jdk
           - wget
           - curl
@@ -30,7 +32,7 @@
 
     - name: Add Elastic APT repository
       apt_repository:
-        repo: "deb https://artifacts.elastic.co/packages/{{ elk_version.split('.')[0] }}.x/apt stable main"
+        repo: "deb https://artifacts.elastic.co/packages/8.x/apt stable main"
         state: present
 
     # -----------------------------
@@ -38,24 +40,22 @@
     # -----------------------------
     - name: Install Elasticsearch
       apt:
-        name: elasticsearch={{ elk_version }}
+        name: elasticsearch
         state: present
+        update_cache: yes
 
     - name: Configure Elasticsearch JVM heap
-      lineinfile:
-        path: /etc/elasticsearch/jvm.options.d/heap.options
-        create: yes
-        line: "-Xms{{ es_heap_size }}\n-Xmx{{ es_heap_size }}"
-        owner: root
-        group: root
-        mode: '0644'
+      copy:
+        dest: /etc/elasticsearch/jvm.options.d/heap.options
+        content: |
+          -Xms{{ es_heap_size }}
+          -Xmx{{ es_heap_size }}
       notify: Restart Elasticsearch
 
     - name: Configure Elasticsearch port
       lineinfile:
         path: /etc/elasticsearch/elasticsearch.yml
         line: "http.port: {{ es_port }}"
-        create: yes
       notify: Restart Elasticsearch
 
     - name: Enable and start Elasticsearch
@@ -69,7 +69,7 @@
     # -----------------------------
     - name: Install Logstash
       apt:
-        name: logstash={{ elk_version }}
+        name: logstash
         state: present
 
     - name: Configure Logstash input
@@ -106,14 +106,13 @@
     # -----------------------------
     - name: Install Kibana
       apt:
-        name: kibana={{ elk_version }}
+        name: kibana
         state: present
 
     - name: Configure Kibana port
       lineinfile:
         path: /etc/kibana/kibana.yml
         line: "server.port: {{ kibana_port }}"
-        create: yes
       notify: Restart Kibana
 
     - name: Enable and start Kibana
