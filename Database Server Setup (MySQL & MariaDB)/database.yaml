@@ -13,16 +13,11 @@
     - name: Update apt cache and install dependencies
       apt:
         name:
-          - python3-pip
           - python3-dev
           - libmysqlclient-dev
+          - python3-mysqldb
         state: present
         update_cache: yes
-
-    - name: Install Python MySQL library
-      pip:
-        name: mysqlclient
-        executable: pip3
 
     - name: Install MySQL server
       apt:
@@ -43,7 +38,7 @@
         user: root
         password: "{{ mysql_root_password }}"
         host_all: yes
-      ignore_errors: yes   # Skip if password already set
+      ignore_errors: yes
 
     - name: Remove anonymous users
       mysql_user:
