@@ -4,7 +4,8 @@
   become: yes
   vars:
     java_package: openjdk-17-jdk
-    tomcat_version: 10.1.24
+    tomcat_version: "10.1.49"
+    tomcat_url: "https://dlcdn.apache.org/tomcat/tomcat‑10/v{{ tomcat_version }}/bin/apache‑tomcat‑{{ tomcat_version }}.tar.gz"
     tomcat_install_dir: /opt/tomcat
     tomcat_user: tomcat
     tomcat_group: tomcat
@@ -31,7 +32,7 @@
 
     - name: Download Tomcat tar.gz
       get_url:
-        url: "https://dlcdn.apache.org/tomcat/tomcat-{{ tomcat_version.split('.')[0] }}/v{{ tomcat_version }}/bin/apache-tomcat-{{ tomcat_version}}.tar.gz"
+        url: "{{ tomcat_url }}"
         dest: /tmp/apache-tomcat-{{ tomcat_version }}.tar.gz
 
     - name: Create Tomcat installation directory
