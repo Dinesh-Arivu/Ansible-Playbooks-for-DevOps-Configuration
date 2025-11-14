@@ -5,7 +5,7 @@
   vars:
     java_package: openjdk-17-jdk
     tomcat_version: "10.1.49"
-    tomcat_url: "https://dlcdn.apache.org/tomcat/tomcat‑10/v{{ tomcat_version }}/bin/apache‑tomcat‑{{ tomcat_version }}.tar.gz"
+    tomcat_url: "https://dlcdn.apache.org/tomcat/tomcat-10/v10.1.49/bin/apache-tomcat-10.1.49.tar.gz"
     tomcat_install_dir: /opt/tomcat
     tomcat_user: tomcat
     tomcat_group: tomcat
