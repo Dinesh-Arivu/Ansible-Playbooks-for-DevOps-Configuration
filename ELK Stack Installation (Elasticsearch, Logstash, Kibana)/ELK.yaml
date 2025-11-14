@@ -112,9 +112,24 @@
     - name: Configure Kibana port
       lineinfile:
         path: /etc/kibana/kibana.yml
+        regexp: '^server.port:'
         line: "server.port: {{ kibana_port }}"
       notify: Restart Kibana
 
+    - name: Configure Kibana for remote access
+      lineinfile:
+        path: /etc/kibana/kibana.yml
+        regexp: '^server.host:'
+        line: 'server.host: "0.0.0.0"'
+      notify: Restart Kibana
+
+    - name: Configure Kibana Elasticsearch hosts
+      lineinfile:
+        path: /etc/kibana/kibana.yml
+        regexp: '^elasticsearch.hosts:'
+        line: 'elasticsearch.hosts: ["http://localhost:{{ es_port }}"]'
+      notify: Restart Kibana
+        
     - name: Enable and start Kibana
       service:
         name: kibana
